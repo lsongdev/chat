@@ -1,6 +1,7 @@
 import mqtt from 'https://esm.sh/mqtt';
+import { ready } from 'https://lsong.org/scripts/dom.js'
 
-const brokerUrl = 'wss://test.mosquitto.org:8081';
+const brokerUrl = 'wss://broker.hivemq.com:8884/mqtt';
 
 let client;
 let keypair = {};
@@ -16,6 +17,7 @@ async function loadData() {
     keypair.privateKey = await importPrivateKey(parsedKeypair.privateKey);
     document.getElementById('publicKeyInput').value = keypair.publicKey;
     document.getElementById('privateKeyInput').value = parsedKeypair.privateKey; // Display the saved private key
+    setCustomKeys();
     subscribeToTopic(keypair.publicKey);
   }
 
@@ -66,18 +68,11 @@ async function setCustomKeys() {
     alert("Please enter both public and private keys.");
     return;
   }
+  keypair.publicKey = publicKey;
+  keypair.privateKey = await importPrivateKey(privateKey);
 
-  try {
-    keypair.publicKey = publicKey;
-    keypair.privateKey = await importPrivateKey(privateKey);
-
-    subscribeToTopic(keypair.publicKey);
-    await saveData();
-    alert("Keys set successfully!");
-  } catch (error) {
-    console.error("Error setting keys:", error);
-    alert("Failed to set keys. Please check the format and try again.");
-  }
+  subscribeToTopic(keypair.publicKey);
+  await saveData();
 }
 
 async function exportPrivateKey(privateKey) {
@@ -119,74 +114,11 @@ function subscribeToTopic(topic) {
   });
 }
 
-async function sendMessage(recipientPublicKey, message) {
-  const sharedKey = await deriveSharedKey(recipientPublicKey);
-  const iv = window.crypto.getRandomValues(new Uint8Array(12));
-  const encrypted = await window.crypto.subtle.encrypt(
-    {
-      name: "AES-GCM",
-      iv: iv
-    },
-    sharedKey,
-    new TextEncoder().encode(message)
-  );
-
-  const payload = JSON.stringify({
-    from: keypair.publicKey,
-    iv: bufferToBase64(iv),
-    message: bufferToBase64(encrypted)
-  });
-
-  client.publish(`/user/${recipientPublicKey}`, payload);
-  displayMessage('You', message);
-}
-
 async function handleIncomingMessage(topic, message) {
   const parsedMessage = JSON.parse(message.toString());
   const decryptedMessage = await decryptMessage(parsedMessage);
   const senderName = Object.keys(contacts).find(name => contacts[name] === parsedMessage.from) || parsedMessage.from.substr(0, 10) + '...';
   displayMessage(senderName, decryptedMessage);
-}
-
-async function decryptMessage(encryptedMessage) {
-  const sharedKey = await deriveSharedKey(encryptedMessage.from);
-  const decrypted = await window.crypto.subtle.decrypt(
-    {
-      name: "AES-GCM",
-      iv: base64ToBuffer(encryptedMessage.iv)
-    },
-    sharedKey,
-    base64ToBuffer(encryptedMessage.message)
-  );
-
-  return new TextDecoder().decode(decrypted);
-}
-
-async function deriveSharedKey(publicKey) {
-  const importedPublicKey = await window.crypto.subtle.importKey(
-    "raw",
-    base64ToBuffer(publicKey),
-    {
-      name: "ECDH",
-      namedCurve: "P-256"
-    },
-    true,
-    []
-  );
-
-  return window.crypto.subtle.deriveKey(
-    {
-      name: "ECDH",
-      public: importedPublicKey
-    },
-    keypair.privateKey,
-    {
-      name: "AES-GCM",
-      length: 256
-    },
-    true,
-    ["encrypt", "decrypt"]
-  );
 }
 
 function bufferToBase64(buffer) {
@@ -238,3 +170,115 @@ document.getElementById('sendMessage').addEventListener('click', async () => {
 });
 
 connectToBroker();
+
+async function deriveSharedKey(publicKey) {
+  const importedPublicKey = await window.crypto.subtle.importKey(
+    "raw",
+    base64ToBuffer(publicKey),
+    {
+      name: "ECDH",
+      namedCurve: "P-256"
+    },
+    true,
+    []
+  );
+
+  return window.crypto.subtle.deriveKey(
+    {
+      name: "ECDH",
+      public: importedPublicKey
+    },
+    keypair.privateKey,
+    {
+      name: "AES-GCM",
+      length: 256
+    },
+    true,
+    ["encrypt", "decrypt"]
+  );
+}
+
+async function sendMessage(recipientPublicKey, message) {
+  // Generate a random AES key for this message
+  const aesKey = await window.crypto.subtle.generateKey(
+    {
+      name: "AES-GCM",
+      length: 256
+    },
+    true,
+    ["encrypt", "decrypt"]
+  );
+
+  // Encrypt the message with the AES key
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const encryptedMessage = await window.crypto.subtle.encrypt(
+    {
+      name: "AES-GCM",
+      iv: iv
+    },
+    aesKey,
+    new TextEncoder().encode(message)
+  );
+
+  // Use ECDH to create a shared secret
+  const sharedKey = await deriveSharedKey(recipientPublicKey, keypair.privateKey);
+
+  // Encrypt the AES key with the shared secret
+  const encryptedAesKey = await window.crypto.subtle.encrypt(
+    {
+      name: "AES-GCM",
+      iv: iv
+    },
+    sharedKey,
+    await window.crypto.subtle.exportKey("raw", aesKey)
+  );
+
+  const payload = JSON.stringify({
+    from: keypair.publicKey,
+    iv: bufferToBase64(iv),
+    encryptedAesKey: bufferToBase64(encryptedAesKey),
+    message: bufferToBase64(encryptedMessage)
+  });
+
+  client.publish(`/user/${recipientPublicKey}`, payload);
+  displayMessage('You', message);
+}
+
+async function decryptMessage(encryptedMessage) {
+  // Derive the shared key using ECDH
+  const sharedKey = await deriveSharedKey(encryptedMessage.from, keypair.privateKey);
+
+  // Decrypt the AES key
+  const aesKeyBuffer = await window.crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: base64ToBuffer(encryptedMessage.iv)
+    },
+    sharedKey,
+    base64ToBuffer(encryptedMessage.encryptedAesKey)
+  );
+
+  // Import the decrypted AES key
+  const aesKey = await window.crypto.subtle.importKey(
+    "raw",
+    aesKeyBuffer,
+    {
+      name: "AES-GCM",
+      length: 256
+    },
+    true,
+    ["encrypt", "decrypt"]
+  );
+
+  // Decrypt the message using the AES key
+  const decrypted = await window.crypto.subtle.decrypt(
+    {
+      name: "AES-GCM",
+      iv: base64ToBuffer(encryptedMessage.iv)
+    },
+    aesKey,
+    base64ToBuffer(encryptedMessage.message)
+  );
+
+  return new TextDecoder().decode(decrypted);
+}
