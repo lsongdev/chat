@@ -2,7 +2,7 @@
 <html lang="en">
 
 <head>
-  <title>Liu Song’s Pages</title>
+  <title>Liu Song’s Chat</title>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <meta name="description" content="homepage, blog, music and etc.">
@@ -27,7 +27,7 @@
     <header class="header">
       <a href="/" class="heading">
         <img src="https://lsong.org/icon.svg" alt="logo" class="logo" width="24">
-        <h1 prefix="Lsong’s " class="title">Pages</h1>
+        <h1 prefix="Lsong’s " class="title">Chat</h1>
       </a>
       <nav class="nav nav-bar">
         <a href="//lsong.org">home</a>
@@ -47,16 +47,36 @@
           Hi, I'm Liu Song, a full-stack developer with a passion for open-source software.
           I have experience in web and mobile development, as well as a background in embedded systems and network
           protocols.
-          I enjoy writing tech <a href="//lsong.org/posts">blogs</a> and developing <a href="//lsong.org/apps.html">applications</a> in my spare time.
+          I enjoy writing tech <a href="//lsong.org/posts">blogs</a> and developing <a
+            href="//lsong.org/apps.html">applications</a> in my spare time.
           Proficient in Node.js, Golang, and server operations, I'm always eager to learn more and contribute to the
           community.
-          Check out my GitHub <a href="https://github.com/song940">@song940</a> for some of my projects and feel free to connect
+          Check out my GitHub <a href="https://github.com/song940">@song940</a> for some of my projects and feel free to
+          connect
           with me to discuss ideas.
-          When I'm not coding, I enjoy listening to <a href="//lsong.org/music">music</a> and playing <a href="//lsong.org/games">games</a>.
+          When I'm not coding, I enjoy listening to <a href="//lsong.org/music">music</a> and playing <a
+            href="//lsong.org/games">games</a>.
         </p>
       </section>
 
-      <section id="app"></section>
+      <section id="app">
+        <h2>Chat</h2>
+        <div id="keyInputs">
+          <input type="text" id="publicKeyInput" placeholder="Your Public Key">
+          <input type="text" id="privateKeyInput" placeholder="Your Private Key">
+        </div>
+        <button id="setKeys">Set Keys</button>
+        <button id="generateKeys">Generate New Keys</button>
+        <div>
+          <input type="text" id="contactName" placeholder="Contact Name">
+          <input type="text" id="contactPublicKey" placeholder="Contact's Public Key">
+          <button id="addContact">Add Contact</button>
+        </div>
+        <div id="messageContainer"></div>
+        <select id="recipientSelect"></select>
+        <input type="text" id="messageInput" placeholder="Type your message">
+        <button id="sendMessage">Send</button>
+      </section>
 
       <hr />
       <section id="subscribe" class="subscribe">
