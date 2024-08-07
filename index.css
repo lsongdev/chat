@@ -1,12 +1,5 @@
 @import url(https://lsong.org/css/stylesheet.css);
 
-body {
-  font-family: Arial, sans-serif;
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
 #messageContainer {
   height: 300px;
   overflow-y: auto;
